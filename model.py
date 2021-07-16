@@ -1,6 +1,7 @@
 """
 Basic kinematics model for computing ping pong serves. Forms a training set
-for neural network practice.
+for neural network practice. This is a rough and UNoptimised code, useful for
+plotting individual trajectories.
 PTD 06/07/21
 """
 import numpy as np
