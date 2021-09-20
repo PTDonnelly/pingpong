@@ -4,6 +4,7 @@ for neural network practice. This is a rough and UNoptimised code, useful for
 plotting individual trajectories.
 PTD 06/07/21
 """
+#%%
 import numpy as np
 from math import sin, cos, atan, radians
 import matplotlib.pyplot as plt
@@ -47,7 +48,7 @@ net_height =    0.1525                               # metres
 paddle_range  = [0.3]
 # paddle_range  = np.arange(0.1, 1, 0.1)               # Serve heights, (m)
 initial_v     = np.arange(1, 10, 1)                 # Initial velocities (m/s)
-initial_theta = np.arange(-90,90, 0.5)                # Trajectory angles (degrees)
+initial_theta = np.arange(-90,90, 1)                # Trajectory angles (degrees)
 time_range    = np.arange(0, 5, 0.001)               # Time domain (s), set as 'continous'
 
 # for testing

@@ -4,6 +4,7 @@ for neural network practice.
 PTD 06/07/21
 PTD 12/07/21: Re-written in terms of class attributes and methods
 """
+#%%
 import numpy as np
 from math import sin, cos, atan, radians
 import matplotlib.pyplot as plt
@@ -42,30 +43,34 @@ class Model():
         
         ##### Physical parameters
         self.table_length  = 1.372                                              # (m)
-        # self.table_width = 0.762                                              # (m)
+        self.table_width = 0.762                                              # (m)
         self.net_height    = 0.1525                                             # (m)
         # self.ball_radius = 0.02                                               # (m)
         self.ball_mass     = 2.7e-3                                             # (kg)
         self.CR            = 0.92                                               # coefficient of restitution
-        self.paddle_range  = np.arange(0.1, 1, 0.1)                             # serve heights, (m)
+        self.paddle_y      = np.arange(0.1, 1, 0.1)                             # serve y-positions, (m)
+        self.paddle_z      = np.arange(0.1, 1, 0.1)                             # serve x-positions, (m)
         self.initial_v     = np.arange(1, 10, 0.3)                              # initial velocities (m/s)
-        self.initial_theta = np.arange(-90, 90, 6)                              # trajectory angles (degrees)
+        self.initial_theta = np.arange(-90, 90, 10)                             # trajectory pitch angles (degrees)
+        self.initial_phi   = np.arange(-90, 90, 10)                             # trajectory yaw angles (degrees)
         self.times         = np.arange(0, 5, 0.01)                              # time domain (s), set as 'continous'
         
         ##### Data arrays
-        self.Np            = len(self.paddle_range)                             # no. of serve heights
+        self.Npy           = len(self.paddle_y)                                 # no. of serve y-heights
+        self.Npz           = len(self.paddle_z)                                 # no. of serve z-translations
         self.Nv            = len(self.initial_v)                                # no. of serve speeds
-        self.Na            = len(self.initial_theta)                            # no. of serve angles
+        self.Ntheta        = len(self.initial_theta)                            # no. of pitch angles
+        self.Nphi          = len(self.initial_phi)                              # no. of yaw angles
         self.Nt            = len(self.times)                                    # no. of time steps
         self.Nh            = 2                                                  # no.of "hops" (parabolas)
-        self.path_x        = np.zeros((self.Na, self.Nt, self.Nh))              # x-values of paths
-        self.path_y        = np.zeros((self.Na, self.Nt, self.Nh))              # y-values of paths
-        self.path_s        = np.zeros((self.Na, self.Nh))                       # range values of paths
-        self.path_h        = np.zeros((self.Na, self.Nh))                       # apse values of paths
-        self.output        = np.zeros((self.Np*self.Nv*self.Na, 5))             # for storing the training set
+        self.path_x        = np.zeros((self.Ntheta, self.Nt, self.Nh))              # x-values of paths
+        self.path_y        = np.zeros((self.Ntheta, self.Nt, self.Nh))              # y-values of paths
+        self.path_s        = np.zeros((self.Ntheta, self.Nh))                       # range values of paths
+        self.path_h        = np.zeros((self.Ntheta, self.Nh))                       # apse values of paths
+        self.output        = np.zeros((self.Npy*self.Nv*self.Ntheta, 5))             # for storing the training set
         self.next_v        = np.zeros(self.Nt)                                  # velocities of subsequent hops
-        self.next_theta    = np.zeros(self.Na)                                  # angles of reflection of subsequent hops
-        print(self.Np, self.Nv, self.Na,'=', self.Np*self.Nv*self.Na,'paths')
+        self.next_theta    = np.zeros(self.Ntheta)                                  # angles of reflection of subsequent hops
+        print(self.Npy, self.Nv, self.Ntheta,'=', self.Npy*self.Nv*self.Ntheta,'paths')
         print(self.Nt, self.Nh, '=', self.Nt*self.Nh, 'points per path')
         print('-----')
     
@@ -74,9 +79,9 @@ class Model():
         parabolas and store logistic value of serve (0) illegal or (1) legal.
         Training set (input parameters and logistic value) is then written
         to a .csv file."""
-        
+
         start_time = time.time()
-        for ip, p in enumerate(self.paddle_range):                  
+        for ip, p in enumerate(self.paddle_y):                  
             current_time1 = time.time() 
             # Store serve height
             self.idx_output('p', [ip], p)
@@ -101,7 +106,7 @@ class Model():
                             self.parabola(p, v, theta, itheta, ihop)
                             
                 # Store logistic values and reject illegal serves
-                for itheta in range(self.Na):
+                for itheta in range(self.Ntheta):
                     # Store serve as legal (1)   
                     self.idx_output('result', [ip, iv, itheta], 1)
                     
@@ -122,9 +127,9 @@ class Model():
             elapsed_time = current_time2 - current_time1
             
             # Calcuate the percentage of legal serves
-            n_runs = self.Nv*self.Na
-            idx1 = ip*self.Nv*self.Na
-            idx2 = (ip+1)*self.Nv*self.Na
+            n_runs = self.Nv*self.Ntheta
+            idx1 = ip*self.Nv*self.Ntheta
+            idx2 = (ip+1)*self.Nv*self.Ntheta
             legal = (self.output[idx1:idx2, 3] == 1).sum()
             print(f'{legal}/{n_runs} runs ({np.round(100*(legal/n_runs), 3)}%) in {np.round(elapsed_time, 3)} s')
             self.output[idx1:idx2, 4] = 100*(legal/n_runs)
@@ -137,8 +142,7 @@ class Model():
         # np.savetxt("training_set.csv", output, delimiter=",")
         
         # Plot scatter of results in parameter space
-        self.plot_params()
-        # self.plot_params('HvsX')
+        # self.plot_params()
         
 
     def parabola(self, p, v, theta, itheta, ihop):
@@ -207,21 +211,21 @@ class Model():
                                                           
         if loop == 'p':
             ip = i[0]
-            idx1 = ip*self.Nv*self.Na
-            idx2 = (ip+1)*self.Nv*self.Na
+            idx1 = ip*self.Nv*self.Ntheta
+            idx2 = (ip+1)*self.Nv*self.Ntheta
             self.output[idx1:idx2, 0] = value
         if loop == 'v':
             ip, iv = i[0], i[1]
-            idx1 = (ip*self.Nv*self.Na) + (iv*self.Na)
-            idx2 = (ip*self.Nv*self.Na) + ((iv+1)*self.Na)
+            idx1 = (ip*self.Nv*self.Ntheta) + (iv*self.Ntheta)
+            idx2 = (ip*self.Nv*self.Ntheta) + ((iv+1)*self.Ntheta)
             self.output[idx1:idx2, 1] = value
         if loop == 'theta':
             ip, iv, itheta = i[0], i[1], i[2]
-            idx1 = (ip*self.Nv*self.Na) + (iv*self.Na) + itheta
+            idx1 = (ip*self.Nv*self.Ntheta) + (iv*self.Ntheta) + itheta
             self.output[idx1, 2] = value   
         if loop == 'result':
             ip, iv, itheta = i[0], i[1], i[2]
-            idx1 = (ip*self.Nv*self.Na) + (iv*self.Na) + itheta
+            idx1 = (ip*self.Nv*self.Ntheta) + (iv*self.Ntheta) + itheta
             self.output[idx1, 3] = value    
             
             
@@ -238,7 +242,7 @@ class Model():
         xticks= np.arange(xlim[0], xlim[1]+1, 30)
         ylim = [self.initial_v[0], self.initial_v[-1]]
         yticks = np.arange(ylim[0], ylim[1], 1)
-        for ip, p in enumerate(self.paddle_range):
+        for ip, p in enumerate(self.paddle_y):
             ax1 = plt.subplot2grid((3, 3), (ip // 3, ip % 3))
             ax1.set_title('p = '+str(np.round(p, 2))+' m', fontsize=10, pad=2)
             ax1.set_xlabel(r'Initial $\theta$ (deg)', fontsize=8, labelpad=2.5)
@@ -269,54 +273,8 @@ class Model():
         
         # Display and close plot
         plt.subplots_adjust(top=0.9, hspace=0.1, wspace=0.1)
-        # plt.savefig('compare_velocityVsangle.png', dpi=300)
+        plt.savefig('compare_velocityVsangle.png', dpi=300)
         plt.show()
             
-    # def plot_paths(self):
-    #     """Plot trajectories:
-    #             Display as a scatter plot all serves for each velocity-angle
-    #             point as a function of serve height. This gives a measure of the
-    #             proportion of legal serves in the space and will be compared 
-    #             between different physical constraints."""
-        
-            
-    #     for ip, p in enumerate(self.paddle_range):
-    #         _, s_min, s_max = self.bounds(p)
-    #         plt.figure(figsize=(8,8), dpi=300)
-    #         plt.suptitle('Trajectories: '+str(np.round(p, 2))+' m')
-    #         cmap = plt.get_cmap('jet')
-    #         for iv, v in enumerate(self.initial_v):
-    #             ax1 = plt.subplot2grid((3, 3), (iv // 3, iv % 3))
-    #             ax1.set_title('v = '+str(np.round(v, 2))+' m/s', fontsize=10, pad=2)
-    #             ax1.set_xlabel('Range (m)', fontsize=8, labelpad=2.5)
-    #             ax1.set_xlim([0, s_max])
-    #             ax1.set_xticks(np.arange(0, s_max+0.01, 0.2))
-    #             ax1.set_ylim([-p, 2])
-    #             ax1.set_ylabel('Height (m)', fontsize=8, labelpad=2.5)
-    #             ax1.tick_params(axis='both', length=2.5, pad=2, labelsize=7)
-                
-    #             # Plot initial trajectories
-    #             for itheta, theta in enumerate(self.initial_theta):
-    #                 # col = cmap(itheta/n_theta)    
-    #                 # ax1.plot(path_x[itheta, :, ihop], path_y[itheta, :, ihop], color=col, alpha=0.1)
-                    
-    #                 col = cmap(itheta/self.Na)  
-    #                 ax1.plot(self.path_x[itheta, :, 0], self.path_y[itheta, :, 0], color=col)
-    #                 ax1.plot(self.path_x[itheta, :, 1], self.path_y[itheta, :, 1], color=col)
-    #             ax1.plot([s_min, s_min], [-p, 2], color='black', lw=0.5, ls='--')
-    #             ax1.plot([0.5*s_max]*2, [-p, 2], color='black', lw=0.5)
-                
-    #             # Clean up axes
-    #             if iv % 3 != 0:
-    #                 ax1.set_yticks([])
-    #                 ax1.set_ylabel('')
-                
-    #             if iv // 3 < 2:
-    #                 ax1.set_xticks([])
-    #                 ax1.set_xlabel('')
-            
-    #     plt.subplots_adjust(top=0.9, hspace=0.1, wspace=0.1)
-    #     # plt.savefig('basic_serve_'+str(ip)+'.png', dpi=300)
-    #     plt.show()        
 s1 = Model()
 s1.serve()
